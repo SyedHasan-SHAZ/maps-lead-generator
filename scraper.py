@@ -12,8 +12,10 @@ def scrape_google_maps(query: str):
     options.add_argument("--headless=new")
     options.add_argument("--disable-gpu")
     options.add_argument("--no-sandbox")
-    options.add_argument("--disable-dev-shm-usage")
-    options.add_argument("--window-size=1920,1080")
+    options.add_argument("--disable-dev-shm-usage") # Critical for Docker/Render RAM
+    options.add_argument("--disable-software-rasterizer")
+    options.add_argument("--disable-extensions")
+    options.add_argument("--window-size=1280,720") # Smaller window = less RAM
     options.add_argument("--lang=en-US")
     
     # --- STEALTH OPTIONS (Google Maps bot detection bypass) ---
