@@ -1,4 +1,3 @@
-import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
@@ -14,14 +13,14 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Yeh line Render par khulte hi aap ka index.html page dikhayegi
-@app.get("/")
+# Added "HEAD" method to prevent 405 errors from Render's health checks
+@app.api_route("/", methods=["GET", "HEAD"])
 def read_index():
     return FileResponse("index.html")
 
 @app.get("/fetch-leads")
 def fetch_leads(location: str, business_type: str):
-    query = f"{business_type} in {location}"
+    query = f"{business_type} in {location}, Karachi"
     print(f"Starting search for: '{query}'")
     
     try:
