@@ -14,7 +14,9 @@ def scrape_google_maps(query: str):
     options.add_argument("--no-sandbox")
     options.add_argument("--disable-dev-shm-usage")
     options.add_argument("--window-size=1920,1080")
-    options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36")
+    # Add language setting to avoid localized consent blocks
+    options.add_argument("--lang=en-US")
+    options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
 
     # Cloud Docker container vs Local machine check
     chrome_bin = os.getenv("CHROME_BIN")
@@ -27,25 +29,37 @@ def scrape_google_maps(query: str):
 
     leads = []
     try:
-        url = f"https://www.google.com/maps/search/{query.replace(' ', '+')}"
+        # Added hl=en to force English and bypass regional consent hurdles
+        url = f"https://www.google.com/maps/search/{query.replace(' ', '+')}?hl=en"
         driver.get(url)
         
         wait = WebDriverWait(driver, 15)
+        
+        # Optional: Try handling Google's consent popup if it appears
+        try:
+            accept_btn = wait.until(EC.element_to_be_clickable((By.XPATH, '//button[contains(., "Accept all") or contains(., "I agree")]')))
+            accept_btn.click()
+            time.sleep(2)
+        except Exception:
+            pass # No popup appeared, proceed normally
+
         try:
             feed = wait.until(EC.presence_of_element_located((By.XPATH, '//div[@role="feed"]')))
-        except Exception:
+        except Exception as e:
+            print(f"Feed element not found: {e}")
             return leads
 
         last_height = driver.execute_script("return arguments[0].scrollHeight", feed)
         for _ in range(8):
             driver.execute_script("arguments[0].scrollTop = arguments[0].scrollHeight", feed)
-            time.sleep(2.5)
+            time.sleep(2)
             new_height = driver.execute_script("return arguments[0].scrollHeight", feed)
             if new_height == last_height:
                 break
             last_height = new_height
 
         results = driver.find_elements(By.CLASS_NAME, 'hfpxzc')
+        print(f"Found {len(results)} raw business links on Maps.")
 
         for r in results[:25]:
             try:
@@ -81,6 +95,7 @@ def scrape_google_maps(query: str):
                 except Exception:
                     pass
 
+                # Condition: Website na ho AUR Phone number mojood ho
                 if not website and phone:
                     clean_phone = "".join(filter(str.isdigit, phone))
                     leads.append({
@@ -92,6 +107,8 @@ def scrape_google_maps(query: str):
             except Exception:
                 continue
 
+    except Exception as ex:
+        print(f"Scraper general error: {ex}")
     finally:
         driver.quit()
 
