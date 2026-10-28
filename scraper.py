@@ -79,7 +79,7 @@ def scrape_google_maps(query: str):
             except:
                 continue
 
-        for r in unique_results[:20]:
+        for r in unique_results[:13]: # Sirf top 10 fast leads nikale ga
             try:
                 driver.execute_script("arguments[0].click();", r)
                 time.sleep(2)
