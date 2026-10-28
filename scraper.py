@@ -14,9 +14,13 @@ def scrape_google_maps(query: str):
     options.add_argument("--no-sandbox")
     options.add_argument("--disable-dev-shm-usage")
     options.add_argument("--window-size=1920,1080")
-    # Add language setting to avoid localized consent blocks
     options.add_argument("--lang=en-US")
-    options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+    
+    # --- STEALTH OPTIONS (Google Maps bot detection bypass) ---
+    options.add_argument("--disable-blink-features=AutomationControlled")
+    options.add_experimental_option("excludeSwitches", ["enable-automation"])
+    options.add_experimental_option('useAutomationExtension', False)
+    options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36")
 
     # Cloud Docker container vs Local machine check
     chrome_bin = os.getenv("CHROME_BIN")
@@ -27,21 +31,23 @@ def scrape_google_maps(query: str):
     else:
         driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
 
+    # Hide webdriver property from JavaScript detection
+    driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
+
     leads = []
     try:
-        # Added hl=en to force English and bypass regional consent hurdles
         url = f"https://www.google.com/maps/search/{query.replace(' ', '+')}?hl=en"
         driver.get(url)
         
         wait = WebDriverWait(driver, 15)
         
-        # Optional: Try handling Google's consent popup if it appears
+        # Handle Google consent popup if it appears
         try:
             accept_btn = wait.until(EC.element_to_be_clickable((By.XPATH, '//button[contains(., "Accept all") or contains(., "I agree")]')))
             accept_btn.click()
             time.sleep(2)
         except Exception:
-            pass # No popup appeared, proceed normally
+            pass
 
         try:
             feed = wait.until(EC.presence_of_element_located((By.XPATH, '//div[@role="feed"]')))
@@ -50,7 +56,7 @@ def scrape_google_maps(query: str):
             return leads
 
         last_height = driver.execute_script("return arguments[0].scrollHeight", feed)
-        for _ in range(8):
+        for _ in range(6):
             driver.execute_script("arguments[0].scrollTop = arguments[0].scrollHeight", feed)
             time.sleep(2)
             new_height = driver.execute_script("return arguments[0].scrollHeight", feed)
@@ -58,10 +64,22 @@ def scrape_google_maps(query: str):
                 break
             last_height = new_height
 
-        results = driver.find_elements(By.CLASS_NAME, 'hfpxzc')
+        # Robust selector for listings
+        results = driver.find_elements(By.CSS_SELECTOR, 'a.hfpxzc, a[href*="/maps/place/"]')
         print(f"Found {len(results)} raw business links on Maps.")
 
-        for r in results[:25]:
+        seen_links = set()
+        unique_results = []
+        for r in results:
+            try:
+                href = r.get_attribute('href')
+                if href and href not in seen_links and '/maps/place/' in href:
+                    seen_links.add(href)
+                    unique_results.append(r)
+            except:
+                continue
+
+        for r in unique_results[:20]:
             try:
                 driver.execute_script("arguments[0].click();", r)
                 time.sleep(2)
@@ -95,7 +113,6 @@ def scrape_google_maps(query: str):
                 except Exception:
                     pass
 
-                # Condition: Website na ho AUR Phone number mojood ho
                 if not website and phone:
                     clean_phone = "".join(filter(str.isdigit, phone))
                     leads.append({
